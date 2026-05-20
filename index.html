@@ -521,7 +521,7 @@
                         </div>
 
                         <div class="flex flex-col items-center gap-1 mb-6 max-w-sm mx-auto w-full">
-                            <label class="font-bold text-gray-600 flex items-center gap-1">연락처 <span class="text-xs text-gray-400 font-normal">(선택)</span></label>
+                            <label class="font-bold text-gray-600 flex items-center gap-1">연락처 <span class="text-xs text-gray-400 font-normal">(본인 혹은 보호자 긴급 연락처)</span></label>
                             <input type="tel" id="input-phone" class="${inputClass} !text-center px-6 !text-xl" value="${state.studentInfo.phone || ''}" oninput="formatPhoneNumber(this); validateStep1();" placeholder="010-1234-5678">
                         </div>
                     </div>
@@ -654,8 +654,8 @@
                         
                         <div class="flex gap-2.5 mt-3">
                             <button onclick="insertQuickPhrase('언제부터: 오늘 아침부터')" class="text-xs font-bold text-slate-500 bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-lg active-scale transition-colors">+ 아침부터</button>
-                            <button onclick="insertQuickPhrase('어쩌다가: 체육시간에 다침')" class="text-xs font-bold text-slate-500 bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-lg active-scale transition-colors">+ 체육시간에</button>
-                            <button onclick="insertQuickPhrase('현재 상태: 보건약 원함')" class="text-xs font-bold text-slate-500 bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-lg active-scale transition-colors">+ 보건약 요청</button>
+                            <button onclick="insertQuickPhrase('어쩌다가: 실습시간에 다침')" class="text-xs font-bold text-slate-500 bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-lg active-scale transition-colors">+ 실습시간에</button>
+                            <button onclick="insertQuickPhrase('현재 상태: 아프지만 참을만 함')" class="text-xs font-bold text-slate-500 bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-lg active-scale transition-colors">+ 아프지만 참을만 함</button>
                         </div>
                     </div>
                 </div>
@@ -725,7 +725,7 @@
                     <p class="text-xs text-gray-400 mt-2">이 화면은 잠시 후 대기 화면으로 초기화됩니다.</p>
                     
                     <button onclick="resetApp()" class="mt-6 px-6 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-xl active-scale transition-colors">
-                        다음 학생 접수하기
+                        처음으로
                     </button>
                 </div>
             `;
@@ -1033,6 +1033,19 @@
 
         // Submit to Firestore
         async function submitDataToFirestore() {
+// [중복 접수 방지 로직]
+const isDuplicate = state.receptions.some(r => 
+    (r.status === 'waiting' || r.status === 'treating') &&
+    r.grade === state.studentInfo.grade &&
+    r.classNum === state.studentInfo.classNum &&
+    r.number === state.studentInfo.number &&
+    r.name === state.studentInfo.name
+);
+
+if (isDuplicate) {
+    openCustomModal("접수 제한", "이미 접수된 학생입니다. 선생님의 호출을 기다려주세요.");
+    return; // 저장 로직으로 넘어가지 않고 종료합니다.
+}
             if (!isSimulation && db) {
                 try {
                     const payload = {
@@ -1266,6 +1279,7 @@
 
             setupFirebase();
         };
+
 
     </script>
 </body>
