@@ -139,7 +139,7 @@
                 </div>
                 <h3 class="text-lg font-extrabold text-slate-800 mb-2">교사인증 비밀번호</h3>
                 <p class="text-xs text-slate-400 mb-4">보건교사 전용 대시보드 진입을 위한 암호를 입력하세요.</p>
-                <input type="password" id="input-password" class="w-full text-center text-2xl font-black tracking-[0.5em] p-3 border-2 border-slate-200 rounded-xl outline-none focus:border-teal-500 mb-5" placeholder="••••" maxlength="11">
+                <input type="password" id="input-password" class="w-full text-center text-2xl font-black tracking-[0.5em] p-3 border-2 border-slate-200 rounded-xl outline-none focus:border-teal-500 mb-5" placeholder="•••••••••••" maxlength="11">
                 <div class="flex gap-2">
                     <button onclick="closePasswordModal()" class="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold rounded-xl active-scale">취소</button>
                     <button onclick="submitPassword()" class="flex-1 py-3 bg-teal-600 hover:bg-teal-700 text-white font-extrabold rounded-xl active-scale">확인</button>
@@ -178,7 +178,6 @@
             details: '',
             receptions: [], // Real-time reception queue
             filterStatus: 'all', // 'all', 'waiting', 'treating', 'completed'
-            selectedDate: new Date().toISOString().split('T')[0],
             lastReceptionCount: 0, // To track new additions and trigger audio alert
             teacherStatus: { isAway: false, message: '' } // 선생님 부재중 상태 및 알림메시지 관리
         };
@@ -896,15 +895,6 @@
                             <h3 class="font-extrabold text-slate-800 text-base md:text-lg flex items-center gap-1.5">
                                 <i class="fa-solid fa-list-check text-teal-600"></i> ${filterTitle} (${activeList.length}명)
                             </h3>
-<div class="flex justify-between items-center border-b border-slate-200 pb-2">
-    <h3 class="font-extrabold text-slate-800 text-base md:text-lg flex items-center gap-1.5">
-        <i class="fa-solid fa-list-check text-teal-600"></i> ${filterTitle} (${activeList.length}명)
-    </h3>
-    <!-- 아래 버튼 코드를 삽입하세요 -->
-    <button onclick="downloadReceptionList()" class="text-xs md:text-sm bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-1.5 rounded-lg active-scale flex items-center gap-1.5 shadow-sm">
-        <i class="fa-solid fa-file-excel"></i> 엑셀 다운로드
-    </button>
-</div>
                         </div>
 
                         <div class="space-y-3 max-h-[400px] overflow-y-auto pr-1">
@@ -1285,48 +1275,27 @@ window.downloadReceptionList = function() {
         return;
     }
 
-    // HTML 테이블 구조로 데이터를 만듭니다 (엑셀이 가장 좋아하는 형식)
-    let tableHtml = `
-        <table border="1">
-            <thead>
-                <tr>
-                    <th>학년</th><th>반</th><th>번호</th><th>이름</th><th>연락처</th>
-                    <th>증상</th><th>통증지수</th><th>발열여부</th><th>상태</th><th>접수시간</th>
-                </tr>
-            </thead>
-            <tbody>
-    `;
+    const headers = ["학년", "반", "번호", "이름", "연락처", "증상", "통증지수", "발열여부", "상태", "접수시간"];
+    const rows = state.receptions.map(r => [
+        r.grade,
+        r.classNum,
+        r.number,
+        r.name,
+        r.phone || "",
+        (r.symptoms || []).join(", "),
+        r.painLevel,
+        r.hasFever ? "예" : "아니오",
+        r.status === 'completed' ? '완료' : (r.status === 'treating' ? '진료중' : '대기중'),
+        new Date(r.timestamp).toLocaleString()
+    ]);
 
-    state.receptions.forEach(r => {
-        const symptoms = (r.symptoms || []).map(id => symptomsData.find(s => s.id === id)?.label || id).join(', ');
-        const statusText = r.status === 'completed' ? '완료' : (r.status === 'treating' ? '진료중' : '대기중');
-        
-        tableHtml += `
-            <tr>
-                <td>${r.grade}</td>
-                <td>${r.classNum}</td>
-                <td>${r.number}</td>
-                <td>${r.name}</td>
-                <td>${r.phone || ""}</td>
-                <td>${symptoms}</td>
-                <td>${r.painLevel}</td>
-                <td>${r.hasFever ? "예" : "아니오"}</td>
-                <td>${statusText}</td>
-                <td>${new Date(r.timestamp).toLocaleString()}</td>
-            </tr>
-        `;
-    });
-
-    tableHtml += `</tbody></table>`;
-
-    // 엑셀에서 인식 가능한 MIME 타입으로 Blob 생성
-    const blob = new Blob([tableHtml], { type: 'application/vnd.ms-excel;charset=utf-8;' });
-    
+    const csvContent = [headers, ...rows].map(e => e.join(",")).join("\n");
+    const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
+    
     const link = document.createElement("a");
-    // .xls 확장자를 붙이면 엑셀이 인코딩을 자동으로 완벽하게 감지합니다.
     link.setAttribute("href", url);
-    link.setAttribute("download", `보건실_접수명단_${new Date().toLocaleDateString()}.xls`);
+    link.setAttribute("download", `보건실_접수명단_${new Date().toLocaleDateString()}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
