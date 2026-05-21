@@ -733,104 +733,213 @@
         }
 
         // --- STREAMING_CHUNK: Formatting Teacher Control dashboards... ---
-function renderTeacherDashboard() {
-    // 1. 선택한 날짜에 맞는 접수건 필터링
-    const filteredReceptions = state.receptions.filter(r => {
-        const rDate = r.timestamp ? new Date(r.timestamp).toISOString().split('T')[0] : "";
-        return rDate === state.selectedDate;
-    });
+        function renderTeacherDashboard() {
+            const waitingList = state.receptions.filter(r => r.status === 'waiting' || !r.status);
+            const treatingList = state.receptions.filter(r => r.status === 'treating');
+            const completedList = state.receptions.filter(r => r.status === 'completed');
+            
+            const sCounter = {};
+            state.receptions.forEach(item => {
+                if (item.symptoms) {
+                    item.symptoms.forEach(s => {
+                        sCounter[s] = (sCounter[s] || 0) + 1;
+                    });
+                }
+            });
+            const topSymptoms = Object.entries(sCounter)
+                .map(([id, count]) => ({
+                    label: symptomsData.find(s => s.id === id)?.label || id,
+                    count
+                }))
+                .sort((a, b) => b.count - a.count)
+                .slice(0, 3);
 
-    const waitingList = filteredReceptions.filter(r => r.status === 'waiting' || !r.status);
-    const treatingList = filteredReceptions.filter(r => r.status === 'treating');
-    const completedList = filteredReceptions.filter(r => r.status === 'completed');
-    
-    let activeList = filteredReceptions;
-    if (state.filterStatus === 'waiting') activeList = waitingList;
-    else if (state.filterStatus === 'treating') activeList = treatingList;
-    else if (state.filterStatus === 'completed') activeList = completedList;
+            let filterTitle = "전체 접수";
+            let activeList = state.receptions;
+            if (state.filterStatus === 'waiting') {
+                filterTitle = "대기중 학생";
+                activeList = waitingList;
+            } else if (state.filterStatus === 'treating') {
+                filterTitle = "진료중 학생";
+                activeList = treatingList;
+            } else if (state.filterStatus === 'completed') {
+                filterTitle = "완료/귀가 학생";
+                activeList = completedList;
+            }
 
-    let cardsHtml = activeList.map(item => {
-        const painLabel = ['조금', '약간', '보통', '많이', '너무'][item.painLevel - 1] || '보통';
-        const sLabels = item.symptoms ? item.symptoms.map(id => symptomsData.find(s => s.id === id)?.label || id).join(', ') : '기타';
-        
-        let statusBadge = '', statusColor = '', actionButton = '';
-        if (item.status === 'completed') {
-            statusBadge = '<span class="bg-slate-100 text-slate-600 px-2.5 py-1 rounded-full font-bold text-xs">완료</span>';
-            statusColor = 'border-l-slate-300';
-            actionButton = `<button onclick="deleteReceptionLog('${item.id}')" class="text-slate-400 hover:text-red-500 p-2 text-lg active-scale"><i class="fa-solid fa-trash-can"></i></button>`;
-        } else if (item.status === 'treating') {
-            statusBadge = '<span class="bg-blue-100 text-blue-600 px-2.5 py-1 rounded-full font-bold text-xs ping-badge">진료 중</span>';
-            statusColor = 'border-l-blue-500';
-            actionButton = `<button onclick="updateStatus('${item.id}', 'completed')" class="bg-emerald-500 hover:bg-emerald-600 text-white px-3 py-1.5 rounded-lg text-sm font-bold active-scale">완료 처리</button>`;
-        } else {
-            statusBadge = '<span class="bg-amber-100 text-amber-600 px-2.5 py-1 rounded-full font-bold text-xs">대기 중</span>';
-            statusColor = 'border-l-amber-500';
-            actionButton = `<button onclick="updateStatus('${item.id}', 'treating')" class="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1.5 rounded-lg text-sm font-bold active-scale">진료 시작</button>`;
+            let cardsHtml = activeList.map(item => {
+                const painLabel = ['조금', '약간', '보통', '많이', '너무'][item.painLevel - 1] || '보통';
+                const sLabels = item.symptoms ? item.symptoms.map(id => symptomsData.find(s => s.id === id)?.label || id).join(', ') : '기타';
+                const createdTime = item.timestamp ? new Date(item.timestamp).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }) : '방금전';
+                
+                let statusBadge = '';
+                let statusColor = '';
+                let actionButton = '';
+
+                if (item.status === 'completed') {
+                    statusBadge = '<span class="bg-slate-100 text-slate-600 px-2.5 py-1 rounded-full font-bold text-xs">완료</span>';
+                    statusColor = 'border-l-slate-300';
+                    actionButton = `
+                        <button onclick="deleteReceptionLog('${item.id}')" class="text-slate-400 hover:text-red-500 p-2 text-lg active-scale" title="로그 삭제">
+                            <i class="fa-solid fa-trash-can"></i>
+                        </button>`;
+                } else if (item.status === 'treating') {
+                    statusBadge = '<span class="bg-blue-100 text-blue-600 px-2.5 py-1 rounded-full font-bold text-xs ping-badge">진료 중</span>';
+                    statusColor = 'border-l-blue-500';
+                    actionButton = `
+                        <button onclick="updateStatus('${item.id}', 'completed')" class="bg-emerald-500 hover:bg-emerald-600 text-white px-3 py-1.5 rounded-lg text-sm font-bold active-scale">
+                            완료 처리
+                        </button>`;
+                } else {
+                    statusBadge = '<span class="bg-amber-100 text-amber-600 px-2.5 py-1 rounded-full font-bold text-xs">대기 중</span>';
+                    statusColor = 'border-l-amber-500';
+                    actionButton = `
+                        <button onclick="updateStatus('${item.id}', 'treating')" class="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1.5 rounded-lg text-sm font-bold active-scale">
+                            진료 시작
+                        </button>`;
+                }
+
+                return `
+                    <div class="bg-white border-l-8 ${statusColor} rounded-xl shadow-sm p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-3 hover:shadow-md transition-all">
+                        <div class="flex-grow space-y-1">
+                            <div class="flex flex-wrap items-center gap-2">
+                                <span class="font-extrabold text-slate-800 text-lg">${item.grade}학년 ${item.classNum}반 ${item.number}번 ${item.name}</span>
+                                ${item.phone ? `<span class="inline-flex items-center gap-1 text-xs bg-teal-50 text-teal-700 px-2.5 py-1 rounded-lg font-bold"><i class="fa-solid fa-phone text-[10px]"></i> ${item.phone}</span>` : ''}
+                                ${statusBadge}
+                                ${item.hasFever ? '<span class="bg-red-100 text-red-600 text-xs font-black px-2 py-0.5 rounded-full"><i class="fa-solid fa-temperature-arrow-up animate-bounce"></i> 고열</span>' : ''}
+                            </div>
+                            <div class="text-sm text-slate-600 font-medium">
+                                <span class="text-teal-600 font-bold">[증상]</span> ${sLabels} | 
+                                <span class="text-amber-500 font-bold">[통증]</span> ${painLabel} (Lv.${item.painLevel})
+                            </div>
+                            ${item.details ? `<div class="bg-slate-50 border border-slate-100 rounded-lg p-2.5 text-xs text-slate-700 mt-1 max-w-xl break-all">${item.details}</div>` : ''}
+                            <div class="text-[11px] text-gray-400 flex items-center gap-1.5">
+                                <i class="fa-regular fa-clock"></i> 접수: ${createdTime}
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2 self-end md:self-center">
+                            ${actionButton}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            const emptyState = `
+                <div class="text-center py-12 text-slate-400">
+                    <i class="fa-solid fa-circle-exclamation text-4xl mb-3"></i>
+                    <p class="font-bold">${filterTitle} 내역이 존재하지 않습니다.</p>
+                </div>
+            `;
+
+            return `
+                <div class="fade-in space-y-6">
+                    <!-- Dashboard Statistics Overview -->
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        <div onclick="setFilter('all')" class="bg-white p-4 rounded-2xl border-2 ${state.filterStatus === 'all' ? 'border-slate-800 bg-slate-50' : 'border-slate-150'} cursor-pointer active-scale shadow-sm flex items-center gap-3.5">
+                            <div class="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center text-slate-600 text-lg"><i class="fa-solid fa-users"></i></div>
+                            <div>
+                                <p class="text-xs font-bold text-slate-400">전체</p>
+                                <p class="text-xl font-black text-slate-800">${state.receptions.length}명</p>
+                            </div>
+                        </div>
+                        <div onclick="setFilter('waiting')" class="bg-white p-4 rounded-2xl border-2 ${state.filterStatus === 'waiting' ? 'border-amber-500 bg-amber-50/10' : 'border-slate-150'} cursor-pointer active-scale shadow-sm flex items-center gap-3.5">
+                            <div class="w-10 h-10 bg-amber-100 rounded-xl flex items-center justify-center text-amber-600 text-lg"><i class="fa-regular fa-clock"></i></div>
+                            <div>
+                                <p class="text-xs font-bold text-amber-500">대기중</p>
+                                <p class="text-xl font-black text-amber-600">${waitingList.length}명</p>
+                            </div>
+                        </div>
+                        <div onclick="setFilter('treating')" class="bg-white p-4 rounded-2xl border-2 ${state.filterStatus === 'treating' ? 'border-blue-500 bg-blue-50/10' : 'border-slate-150'} cursor-pointer active-scale shadow-sm flex items-center gap-3.5">
+                            <div class="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center text-blue-600 text-lg"><i class="fa-solid fa-user-doctor"></i></div>
+                            <div>
+                                <p class="text-xs font-bold text-blue-500">진료중</p>
+                                <p class="text-xl font-black text-blue-600">${treatingList.length}명</p>
+                            </div>
+                        </div>
+                        <div onclick="setFilter('completed')" class="bg-white p-4 rounded-2xl border-2 ${state.filterStatus === 'completed' ? 'border-emerald-500 bg-emerald-50/10' : 'border-slate-150'} cursor-pointer active-scale shadow-sm flex items-center gap-3.5">
+                            <div class="w-10 h-10 bg-emerald-100 rounded-xl flex items-center justify-center text-emerald-600 text-lg"><i class="fa-solid fa-circle-check"></i></div>
+                            <div>
+                                <p class="text-xs font-bold text-emerald-500">완료</p>
+                                <p class="text-xl font-black text-emerald-600">${completedList.length}명</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Away Configuration -->
+                    <div class="bg-gradient-to-r from-amber-500/10 to-amber-600/5 border border-amber-300 rounded-2xl p-4">
+                        <div class="flex flex-col md:flex-row justify-between md:items-center gap-3">
+                            <div class="flex items-start gap-2.5">
+                                <div class="w-9 h-9 bg-amber-500 text-white rounded-lg flex items-center justify-center text-base shadow-md"><i class="fa-solid fa-bell"></i></div>
+                                <div>
+                                    <h4 class="font-extrabold text-amber-950 text-sm">부재중 알림 및 임시 메세지</h4>
+                                    <p class="text-xs text-amber-800 font-medium">활성화 시 학생들이 보는 메인화면에 공지가 표시됩니다.</p>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <span class="text-xs font-bold text-amber-900">상태:</span>
+                                <label class="relative inline-flex items-center cursor-pointer">
+                                    <input type="checkbox" id="away-toggle" class="sr-only peer" ${state.teacherStatus.isAway ? 'checked' : ''} onchange="toggleTeacherAway(this.checked)">
+                                    <div class="w-11 h-6 bg-slate-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:width-5 after:transition-all peer-checked:bg-amber-600"></div>
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <div class="mt-3.5 flex flex-col md:flex-row gap-2 ${state.teacherStatus.isAway ? '' : 'opacity-60 pointer-events-none'} transition-all">
+                            <input type="text" id="away-msg-input" class="flex-grow bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs md:text-sm font-medium outline-none" placeholder="예) 임시 회의 참석으로 부재중입니다. 조용히 앉아 기다려주세요." value="${state.teacherStatus.message || ''}">
+                            <button onclick="saveTeacherAwayMessage()" class="px-5 py-2 bg-amber-600 hover:bg-amber-700 text-white font-extrabold rounded-xl text-xs md:text-sm active-scale">저장하기</button>
+                        </div>
+                    </div>
+
+                    <!-- Active List -->
+                    <div class="space-y-3">
+                        <div class="flex justify-between items-center border-b border-slate-200 pb-2">
+                            <h3 class="font-extrabold text-slate-800 text-base md:text-lg flex items-center gap-1.5">
+                                <i class="fa-solid fa-list-check text-teal-600"></i> ${filterTitle} (${activeList.length}명)
+                            </h3>
+<div class="flex justify-between items-center border-b border-slate-200 pb-2">
+    <h3 class="font-extrabold text-slate-800 text-base md:text-lg flex items-center gap-1.5">
+        <i class="fa-solid fa-list-check text-teal-600"></i> ${filterTitle} (${activeList.length}명)
+    </h3>
+    <!-- 아래 버튼 코드를 삽입하세요 -->
+    <button onclick="downloadReceptionList()" class="text-xs md:text-sm bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-1.5 rounded-lg active-scale flex items-center gap-1.5 shadow-sm">
+        <i class="fa-solid fa-file-excel"></i> 엑셀 다운로드
+    </button>
+</div>
+                        </div>
+
+                        <div class="space-y-3 max-h-[400px] overflow-y-auto pr-1">
+                            ${cardsHtml || emptyState}
+                        </div>
+                    </div>
+
+                    <!-- Multi-device Setup / QR Connection -->
+                    <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm mt-6">
+                        <h4 class="font-extrabold text-slate-800 text-sm mb-2 flex items-center gap-1.5">
+                            <i class="fa-solid fa-mobile-screen-button text-teal-600"></i> 타 기기(태블릿/모바일) 연동 가이드
+                        </h4>
+                        <p class="text-xs text-slate-500 mb-4">
+                            동일 네트워크 환경 또는 전용 클라우드가 세팅되었을 때 아래의 QR을 스캔하여 태블릿을 접수 기기로 바로 활용할 수 있습니다.
+                        </p>
+                        <div class="flex flex-col sm:flex-row items-center gap-6">
+                            <div class="bg-slate-50 p-3 rounded-xl border border-slate-200 flex items-center justify-center shadow-inner">
+                                <canvas id="qr-code-canvas" class="w-[140px] h-[140px]"></canvas>
+                            </div>
+                            <div class="space-y-2.5 flex-grow w-full">
+                                <p class="text-xs font-bold text-slate-600">현재 키오스크 공유용 라이브 URL</p>
+                                <div class="flex gap-2">
+                                    <input type="text" id="share-url" readonly value="" class="flex-grow bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono text-slate-500">
+                                    <button onclick="copyShareUrl()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-extrabold active-scale">복사</button>
+                                </div>
+                                <p class="text-[11px] text-rose-500 leading-relaxed font-bold">
+                                    ⚠️ 현재 로컬 실행 중(시뮬레이션 모드)이라면 다른 스마트기기와 데이터 공유가 되지 않습니다. 아래 README 깃허브 배포 가이드를 참조해 주소 및 Firebase 연동을 구축해야 무선 스마트 보건실 시스템이 완전하게 성립됩니다.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
         }
 
-        return `
-            <div class="bg-white border-l-8 ${statusColor} rounded-xl shadow-sm p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-3 hover:shadow-md transition-all">
-                <div class="flex-grow space-y-1">
-                    <div class="flex flex-wrap items-center gap-2">
-                        <span class="font-extrabold text-slate-800 text-lg">${item.grade}학년 ${item.classNum}반 ${item.number}번 ${item.name}</span>
-                        ${statusBadge}
-                    </div>
-                    <div class="text-sm text-slate-600 font-medium">
-                        <span class="text-teal-600 font-bold">[증상]</span> ${sLabels} | 
-                        <span class="text-amber-500 font-bold">[통증]</span> ${painLabel} (Lv.${item.painLevel})
-                    </div>
-                </div>
-                <div class="flex items-center gap-2">${actionButton}</div>
-            </div>
-        `;
-    }).join('');
-
-    return `
-        <div class="fade-in space-y-6">
-            <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
-                <div class="flex items-center gap-4">
-                    <label class="font-extrabold text-slate-700">조회 날짜:</label>
-                    <input type="date" value="${state.selectedDate}" onchange="state.selectedDate=this.value; updateUI()" class="border-2 border-slate-200 rounded-lg p-2 font-bold text-teal-700 outline-none focus:border-teal-500 cursor-pointer">
-                </div>
-                <button onclick="downloadReceptionList()" class="text-xs font-bold bg-slate-100 hover:bg-slate-200 px-3 py-2 rounded-lg text-slate-600"><i class="fa-solid fa-file-excel mr-1"></i> 엑셀</button>
-            </div>
-            
-            <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
-                <div onclick="setFilter('all')" class="bg-white p-4 rounded-2xl border-2 ${state.filterStatus === 'all' ? 'border-slate-800 bg-slate-50' : 'border-slate-150'} cursor-pointer active-scale shadow-sm">
-                    <p class="text-xs font-bold text-slate-400">전체</p><p class="text-xl font-black">${filteredReceptions.length}명</p>
-                </div>
-                <div onclick="setFilter('waiting')" class="bg-white p-4 rounded-2xl border-2 ${state.filterStatus === 'waiting' ? 'border-amber-500 bg-amber-50' : 'border-slate-150'} cursor-pointer active-scale shadow-sm">
-                    <p class="text-xs font-bold text-amber-500">대기중</p><p class="text-xl font-black">${waitingList.length}명</p>
-                </div>
-                <div onclick="setFilter('treating')" class="bg-white p-4 rounded-2xl border-2 ${state.filterStatus === 'treating' ? 'border-blue-500 bg-blue-50' : 'border-slate-150'} cursor-pointer active-scale shadow-sm">
-                    <p class="text-xs font-bold text-blue-500">진료중</p><p class="text-xl font-black">${treatingList.length}명</p>
-                </div>
-                <div onclick="setFilter('completed')" class="bg-white p-4 rounded-2xl border-2 ${state.filterStatus === 'completed' ? 'border-emerald-500 bg-emerald-50' : 'border-slate-150'} cursor-pointer active-scale shadow-sm">
-                    <p class="text-xs font-bold text-emerald-500">완료</p><p class="text-xl font-black">${completedList.length}명</p>
-                </div>
-            </div>
-
-            <div class="space-y-3 max-h-[300px] overflow-y-auto pr-1">
-                ${cardsHtml || '<div class="text-center py-12 text-slate-400">해당 날짜에 접수된 내역이 없습니다.</div>'}
-            </div>
-
-            <!-- QR Code Section -->
-            <div class="bg-slate-800 rounded-2xl p-6 text-white flex flex-col md:flex-row items-center gap-6 shadow-xl">
-                <div class="bg-white p-2 rounded-xl">
-                    <canvas id="qr-code-canvas" class="w-32 h-32"></canvas>
-                </div>
-                <div class="flex-grow">
-                    <h4 class="font-black text-lg mb-1">학생용 모바일 접수 바로가기</h4>
-                    <p class="text-xs text-slate-400 mb-4">이 QR 코드를 학생들에게 스캔하게 하거나, 아래 주소를 공유하세요.</p>
-                    <div class="flex gap-2">
-                        <input type="text" id="share-url" readonly class="w-full bg-slate-700 border-none rounded-lg p-2 text-xs text-slate-300">
-                        <button onclick="copyShareUrl()" class="bg-teal-600 hover:bg-teal-500 px-4 py-2 rounded-lg text-sm font-bold active-scale">복사</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    `;
-}
         // --- STREAMING_CHUNK: Setting up interactive controller methods... ---
         window.startKioskProcess = function() {
             state.currentStep = 1;
