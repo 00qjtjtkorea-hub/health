@@ -740,18 +740,15 @@ function renderTeacherDashboard() {
         return rDate === state.selectedDate;
     });
 
-    // 2. 필터링된 데이터 기반으로 상태별 인원 계산
     const waitingList = filteredReceptions.filter(r => r.status === 'waiting' || !r.status);
     const treatingList = filteredReceptions.filter(r => r.status === 'treating');
     const completedList = filteredReceptions.filter(r => r.status === 'completed');
     
-    // 3. 현재 선택된 필터에 따른 목록 결정
     let activeList = filteredReceptions;
     if (state.filterStatus === 'waiting') activeList = waitingList;
     else if (state.filterStatus === 'treating') activeList = treatingList;
     else if (state.filterStatus === 'completed') activeList = completedList;
 
-    // 4. 카드 HTML 생성
     let cardsHtml = activeList.map(item => {
         const painLabel = ['조금', '약간', '보통', '많이', '너무'][item.painLevel - 1] || '보통';
         const sLabels = item.symptoms ? item.symptoms.map(id => symptomsData.find(s => s.id === id)?.label || id).join(', ') : '기타';
@@ -788,7 +785,6 @@ function renderTeacherDashboard() {
         `;
     }).join('');
 
-    // 5. 전체 대시보드 UI 반환
     return `
         <div class="fade-in space-y-6">
             <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
@@ -814,13 +810,27 @@ function renderTeacherDashboard() {
                 </div>
             </div>
 
-            <div class="space-y-3 max-h-[400px] overflow-y-auto pr-1">
+            <div class="space-y-3 max-h-[300px] overflow-y-auto pr-1">
                 ${cardsHtml || '<div class="text-center py-12 text-slate-400">해당 날짜에 접수된 내역이 없습니다.</div>'}
+            </div>
+
+            <!-- QR Code Section -->
+            <div class="bg-slate-800 rounded-2xl p-6 text-white flex flex-col md:flex-row items-center gap-6 shadow-xl">
+                <div class="bg-white p-2 rounded-xl">
+                    <canvas id="qr-code-canvas" class="w-32 h-32"></canvas>
+                </div>
+                <div class="flex-grow">
+                    <h4 class="font-black text-lg mb-1">학생용 모바일 접수 바로가기</h4>
+                    <p class="text-xs text-slate-400 mb-4">이 QR 코드를 학생들에게 스캔하게 하거나, 아래 주소를 공유하세요.</p>
+                    <div class="flex gap-2">
+                        <input type="text" id="share-url" readonly class="w-full bg-slate-700 border-none rounded-lg p-2 text-xs text-slate-300">
+                        <button onclick="copyShareUrl()" class="bg-teal-600 hover:bg-teal-500 px-4 py-2 rounded-lg text-sm font-bold active-scale">복사</button>
+                    </div>
+                </div>
             </div>
         </div>
     `;
 }
-
         // --- STREAMING_CHUNK: Setting up interactive controller methods... ---
         window.startKioskProcess = function() {
             state.currentStep = 1;
